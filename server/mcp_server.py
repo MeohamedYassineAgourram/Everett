@@ -12,6 +12,7 @@ if __package__ in {None, ""}:
 
 from server.fitness import score_path
 from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
+from server.postmortem import generate_postmortem
 
 
 mcp = FastMCP(
@@ -58,12 +59,8 @@ def collapse(run_id: str, winner: str) -> dict:
     state = _load_state(run_id)
     timeline = _find_timeline(state, winner)
     _run_git("branch", "-f", "everett/result", timeline["branch"])
+    postmortem = generate_postmortem(run_id, winner, state)
     cleanup(run_id)
-
-    postmortem = (
-        f"Collapsed run `{run_id}` to timeline `{timeline['id']}` "
-        f"({timeline['strategy']}). Roads not taken will be distilled here."
-    )
     return {"result_branch": "everett/result", "postmortem": postmortem}
 
 

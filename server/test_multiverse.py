@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
+from server.postmortem import generate_postmortem
 
 
 def _branch_exists(branch: str) -> bool:
@@ -175,6 +176,58 @@ time.sleep(5)
         assert saved["timelines"][0]["status"] == "timeout"
         assert "timeout after 1s" in (worktree / "worker.log").read_text()
         assert _git_output(["rev-list", "--count", "main..HEAD"], worktree) == "0"
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
+
+
+def test_generate_postmortem_includes_loser_logs_and_diffs():
+    state = create_timelines(["winner path", "risky cache", "large rewrite"])
+    run_id = state["run_id"]
+    fake_worker = """
+import pathlib
+import subprocess
+import sys
+
+worktree = pathlib.Path(sys.argv[1])
+prompt = sys.argv[2]
+marker = worktree / f"postmortem-{worktree.name}.txt"
+marker.write_text(prompt + "\\n")
+subprocess.run(["git", "add", marker.name], cwd=worktree, check=True)
+subprocess.run(
+    [
+        "git",
+        "-c",
+        "user.name=Everett Worker",
+        "-c",
+        "user.email=worker@example.com",
+        "commit",
+        "-m",
+        f"postmortem commit {worktree.name}",
+    ],
+    cwd=worktree,
+    check=True,
+)
+"""
+
+    try:
+        timelines = asyncio.run(
+            launch_workers(
+                state["timelines"],
+                worker_command=[sys.executable, "-c", fake_worker],
+                timeout_seconds=10,
+            )
+        )
+        state["timelines"] = timelines
+        postmortem = generate_postmortem(run_id, "A", state)
+
+        assert postmortem.startswith(f"# Roads Not Taken: `{run_id}`")
+        assert "Winner `A` survived with strategy: winner path" in postmortem
+        assert "Timeline `B` explored `risky cache`" in postmortem
+        assert "postmortem-B.txt" in postmortem
+        assert "Timeline `C` explored `large rewrite`" in postmortem
+        assert "postmortem-C.txt" in postmortem
+        assert "worker.log" not in postmortem
     finally:
         if (REPO_ROOT / "runs" / run_id).exists():
             cleanup(run_id)
