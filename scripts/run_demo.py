@@ -20,6 +20,7 @@ from rich.text import Text
 from server.fitness import score_path
 from server.mcp_server import collapse
 from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
+from server.showcase import save_scoreboard
 
 
 TIMELINES = (
@@ -131,6 +132,7 @@ async def main() -> int:
             return 1
 
         winner = max(passing, key=lambda entry: entry["score"])["timeline"]
+        save_scoreboard({"run_id": run_id, "timelines": timelines}, scoreboard)
         console.print(scoreboard_table(scoreboard, winner))
         console.print(f"\n[bold cyan]COLLAPSE[/] Keeping timeline [bold green]{winner}[/].")
         result = collapse(run_id, winner)

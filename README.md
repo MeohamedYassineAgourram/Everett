@@ -13,6 +13,7 @@ The endpoint in `demo/slowapi` is too slow. Use Everett: fork three strategies â
 ```bash
 uv venv --python 3.11
 uv pip install pytest fastapi uvicorn httpx rich fastmcp
+npm install --prefix visualizer
 ```
 
 Register the MCP server with Codex:
@@ -20,6 +21,14 @@ Register the MCP server with Codex:
 ```bash
 codex mcp add everett -- "$PWD/.venv/bin/python" "$PWD/server/mcp_server.py"
 ```
+
+For the local Codex plugin that adds Everett's guided `showcase -> fork -> judge -> collapse` workflow, install it once on this machine:
+
+```bash
+codex plugin add everett-showcase@personal
+```
+
+Start a new Codex thread after installation, then ask Codex to use Everett and call `showcase()` first. The supported integration opens a live browser companion for the custom Three.js scene while Codex keeps the tool calls and final answer in its own interface.
 
 Use this approval override for unattended MCP smoke tests:
 
@@ -35,7 +44,15 @@ Launch the full projector demo in one command:
 scripts/demo.sh
 ```
 
-It opens a four-pane tmux session: the Everett control panel plus three live worker timelines. Use `scripts/demo.sh --fast` for the deterministic no-model-credit backup. Detach with `Ctrl-b`, then `d`; end a completed session with `tmux kill-session -t everett-demo`.
+It opens the live 3D multiverse companion plus a four-pane tmux session: the Everett control panel and three worker timelines. Use `scripts/demo.sh --fast` for the deterministic no-model-credit backup. Detach with `Ctrl-b`, then `d`; end a completed session with `tmux kill-session -t everett-demo`.
+
+Open the live 3D multiverse companion:
+
+```bash
+scripts/showcase.sh
+```
+
+From a Codex session, ask it to call the Everett `showcase` tool before `fork`; the visualizer follows the same live state and retains the final collapse result.
 
 Run tests:
 

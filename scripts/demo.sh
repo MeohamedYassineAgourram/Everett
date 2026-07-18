@@ -36,6 +36,7 @@ if tmux has-session -t "$session" 2>/dev/null; then
 fi
 
 "$repo_root/scripts/reset_demo.sh" >/dev/null
+"$repo_root/scripts/showcase.sh" >/dev/null
 
 quoted_python=$(printf '%q' "$python_bin")
 quoted_runner=$(printf '%q' "$repo_root/scripts/run_demo.py")

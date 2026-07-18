@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Everett Multiverse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main>
+      <canvas id="universe"></canvas>
+      <div class="scrim" aria-hidden="true"></div>
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="render-fallback" id="render-fallback" hidden>
+        This browser cannot render the 3D multiverse. The live timeline status is still available below.
+      </div>
+      <header class="topbar">
+        <div class="brand">EVERETT <span>Multiverse Engine</span></div>
+        <div class="run-status" id="run-status">READY TO FORK</div>
+      </header>
+      <section class="intro">
+        <p class="eyebrow">Agentic tree search over real code</p>
+        <h1>Do not choose.<br />Fork reality.</h1>
+        <p class="subhead" id="headline-copy">Three futures. One objective judge. One surviving branch.</p>
+      </section>
+      <aside class="run-panel" id="run-panel"></aside>
+      <aside class="timeline-panel" id="timeline-panel"></aside>
+      <aside class="judge-panel" id="judge-panel"></aside>
+      <aside class="decision-panel" id="decision-panel"></aside>
+      <footer class="footer-bar">
+        <span id="phase-copy">Awaiting a run from Codex.</span>
+        <span>Humans get undo. Codex gets do-over.</span>
+      </footer>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -13,6 +13,7 @@ if __package__ in {None, ""}:
 from server.fitness import score_path
 from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
 from server.postmortem import generate_postmortem
+from server.showcase import launch_showcase, save_result, save_scoreboard
 
 
 mcp = FastMCP(
@@ -52,6 +53,7 @@ async def judge(run_id: str) -> dict:
         scores = score_path(REPO_ROOT / timeline["worktree"])
         scoreboard.append({"timeline": timeline["id"], **scores})
 
+    save_scoreboard(state, scoreboard)
     return {"scoreboard": scoreboard}
 
 
@@ -66,8 +68,19 @@ def collapse(run_id: str, winner: str) -> dict:
     timeline = _find_timeline(state, winner)
     _run_git("branch", "-f", "everett/result", timeline["branch"])
     postmortem = generate_postmortem(run_id, winner, state)
+    save_result(state, winner, postmortem)
     cleanup(run_id)
     return {"result_branch": "everett/result", "postmortem": postmortem}
+
+
+@mcp.tool
+def showcase() -> dict:
+    """Open the live 3D Everett multiverse companion for the current run."""
+    url = launch_showcase()
+    return {
+        "url": url,
+        "message": "Opened the Everett 3D showcase. It updates as fork, judge, and collapse run.",
+    }
 
 
 def _load_state(run_id: str) -> dict:

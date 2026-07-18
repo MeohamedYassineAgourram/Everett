@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 perf.json
 worker.log
+visualizer/node_modules/
