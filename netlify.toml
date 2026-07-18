@@ -1,0 +1,6 @@
+[build]
+  publish = "visualizer"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

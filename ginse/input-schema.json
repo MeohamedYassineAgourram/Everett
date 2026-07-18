@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Benchmark candidates",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["baseline_p50_ms", "candidates"],
+  "properties": {
+    "baseline_p50_ms": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "The p50 latency of the unoptimized endpoint in milliseconds."
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "strategy", "p50_ms", "diff_lines", "tests_passed"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,24}$",
+            "description": "A unique timeline identifier, such as A, B, or C."
+          },
+          "strategy": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 280,
+            "description": "The implementation approach tested in this timeline."
+          },
+          "p50_ms": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "The measured p50 endpoint latency after this change in milliseconds."
+          },
+          "diff_lines": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total changed lines in the candidate patch."
+          },
+          "tests_passed": {
+            "type": "boolean",
+            "description": "Whether the required correctness test suite passed."
+          }
+        }
+      },
+      "description": "One to three independently tested code-change candidates."
+    }
+  }
+}

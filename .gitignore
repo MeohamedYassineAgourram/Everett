@@ -6,4 +6,5 @@ __pycache__/
 perf.json
 worker.log
 visualizer/node_modules/
+node_modules/
 .netlify/

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Winning optimization and scorecard",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["baseline_p50_ms", "winner", "scoreboard", "decision_evidence"],
+  "properties": {
+    "baseline_p50_ms": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "winner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "strategy", "tests_passed", "p50_ms", "speedup", "diff_lines", "score"],
+      "properties": {
+        "id": { "type": "string" },
+        "strategy": { "type": "string" },
+        "tests_passed": { "const": true },
+        "p50_ms": { "type": "number", "exclusiveMinimum": 0 },
+        "speedup": { "type": "number", "exclusiveMinimum": 0 },
+        "diff_lines": { "type": "integer", "minimum": 0 },
+        "score": { "type": "number" }
+      }
+    },
+    "scoreboard": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "strategy", "tests_passed", "p50_ms", "speedup", "diff_lines", "score"],
+        "properties": {
+          "id": { "type": "string" },
+          "strategy": { "type": "string" },
+          "tests_passed": { "type": "boolean" },
+          "p50_ms": { "type": "number", "exclusiveMinimum": 0 },
+          "speedup": { "type": "number", "exclusiveMinimum": 0 },
+          "diff_lines": { "type": "integer", "minimum": 0 },
+          "score": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "decision_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hard_gate", "speedup", "diff_lines", "score_margin", "summary"],
+      "properties": {
+        "hard_gate": { "const": "tests_passing" },
+        "speedup": { "type": "number", "exclusiveMinimum": 0 },
+        "diff_lines": { "type": "integer", "minimum": 0 },
+        "score_margin": { "type": "number" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    }
+  }
+}

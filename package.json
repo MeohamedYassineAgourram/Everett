@@ -1,0 +1,8 @@
+{
+  "name": "everett-ginse-adapter",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/database": "^1.1.0"
+  }
+}

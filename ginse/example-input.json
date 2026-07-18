@@ -1,0 +1,26 @@
+{
+  "baseline_p50_ms": 1200,
+  "candidates": [
+    {
+      "id": "A",
+      "strategy": "Cache repeat report responses.",
+      "p50_ms": 550,
+      "diff_lines": 31,
+      "tests_passed": true
+    },
+    {
+      "id": "B",
+      "strategy": "Replace the N+1 report query with one grouped query.",
+      "p50_ms": 105,
+      "diff_lines": 44,
+      "tests_passed": true
+    },
+    {
+      "id": "C",
+      "strategy": "Precompute the report summary before serving requests.",
+      "p50_ms": 80,
+      "diff_lines": 86,
+      "tests_passed": false
+    }
+  ]
+}
