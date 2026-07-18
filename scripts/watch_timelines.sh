@@ -27,8 +27,15 @@ for timeline in A B C; do
   fi
 done
 
-tmux new-session -d -s everett -c "$repo_root" "tail -n +1 -f runs/$run_id/A/worker.log"
-tmux split-window -h -t everett:0 -c "$repo_root" "tail -n +1 -f runs/$run_id/B/worker.log"
-tmux split-window -h -t everett:0 -c "$repo_root" "tail -n +1 -f runs/$run_id/C/worker.log"
+python_bin="$repo_root/.venv/bin/python"
+if [ ! -x "$python_bin" ]; then
+  python_bin="python3"
+fi
+
+quoted_python=$(printf '%q' "$python_bin")
+quoted_viewer=$(printf '%q' "$repo_root/scripts/timeline_log.py")
+tmux new-session -d -s everett -c "$repo_root" "$quoted_python $quoted_viewer $run_id A"
+tmux split-window -h -t everett:0 -c "$repo_root" "$quoted_python $quoted_viewer $run_id B"
+tmux split-window -h -t everett:0 -c "$repo_root" "$quoted_python $quoted_viewer $run_id C"
 tmux select-layout -t everett:0 even-horizontal
 tmux attach-session -t everett

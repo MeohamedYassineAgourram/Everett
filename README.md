@@ -41,6 +41,8 @@ Run the fast full-loop rehearsal:
 scripts/dry_run.sh
 ```
 
+Add `--verbose` to show postmortem text and worker-log locations instead of the concise demo view.
+
 Run the real-worker rehearsal with three headless Codex workers:
 
 ```bash

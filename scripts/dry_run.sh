@@ -4,15 +4,18 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-mode="${1:---fake-workers}"
-case "$mode" in
-  --fake-workers) ;;
-  --real-workers) ;;
-  *)
-    echo "usage: scripts/dry_run.sh [--fake-workers|--real-workers]" >&2
-    exit 2
-    ;;
-esac
+mode="--fake-workers"
+verbose="false"
+for argument in "$@"; do
+  case "$argument" in
+    --fake-workers|--real-workers) mode="$argument" ;;
+    --verbose) verbose="true" ;;
+    *)
+      echo "usage: scripts/dry_run.sh [--fake-workers|--real-workers] [--verbose]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 "$repo_root/scripts/reset_demo.sh" >/dev/null
 
@@ -22,6 +25,7 @@ if [ ! -x "$repo_root/.venv/bin/python" ]; then
 fi
 
 export EVERETT_DRY_RUN_MODE="$mode"
+export EVERETT_DRY_RUN_VERBOSE="$verbose"
 "$repo_root/.venv/bin/python" - <<'PY'
 from __future__ import annotations
 
@@ -32,7 +36,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from server.fitness import render_scoreboard, score_path
+from server.fitness import score_path
 from server.mcp_server import collapse
 from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
 
@@ -42,6 +46,7 @@ STRATEGIES = [
     "Add a tiny marker file for the query rewrite strategy. Do not change app behavior.",
     "Add a tiny marker file for the precompute strategy. Do not change app behavior.",
 ]
+TIMELINE_NAMES = ("Cache", "Query rewrite", "Precompute")
 
 FAKE_WORKER = """
 import pathlib
@@ -73,16 +78,22 @@ subprocess.run(
 
 def main() -> int:
     mode = os.environ["EVERETT_DRY_RUN_MODE"]
+    verbose = os.environ["EVERETT_DRY_RUN_VERBOSE"] == "true"
     worker_command = None
-    timeout_seconds = 360
+    timeout_seconds = 240
     if mode == "--fake-workers":
         worker_command = [sys.executable, "-c", FAKE_WORKER]
         timeout_seconds = 30
 
+    ui = RehearsalUI(mode, verbose)
+    ui.header()
+    ui.phase("1/4", "Forking three timelines")
     state = create_timelines(STRATEGIES)
     run_id = state["run_id"]
+    ui.run_id(run_id)
 
     try:
+        ui.phase("2/4", "Workers are exploring in parallel")
         timelines = asyncio.run(
             launch_workers(
                 state["timelines"],
@@ -95,19 +106,19 @@ def main() -> int:
             scores = score_path(REPO_ROOT / timeline["worktree"])
             scoreboard.append({"timeline": timeline["id"], **scores})
 
-        print(f"Everett dry run: {run_id}")
-        print(_worker_summary(timelines))
-        print(render_scoreboard(scoreboard))
-
         passing = [entry for entry in scoreboard if entry["tests_passed"]]
         if not passing:
-            print("No passing timelines; leaving run state for inspection.", file=sys.stderr)
+            ui.workers(timelines)
+            ui.failure("No timeline passed its tests. Run again with --verbose to inspect logs.")
             return 1
 
         winner = max(passing, key=lambda entry: entry["score"])["timeline"]
+        ui.workers(timelines)
+        ui.phase("3/4", "Judging timelines")
+        ui.scoreboard(scoreboard, winner)
+
+        ui.phase("4/4", f"Collapsing to timeline {winner}")
         result = collapse(run_id, winner)
-        print(f"Winner: {winner}")
-        print(result["postmortem"])
 
         result_exists = subprocess.run(
             ["git", "branch", "--list", "everett/result"],
@@ -119,7 +130,9 @@ def main() -> int:
         if not result_exists:
             raise RuntimeError("collapse did not create everett/result")
 
-        print(json.dumps({"run_id": run_id, "winner": winner, **result}, indent=2))
+        ui.result(run_id, winner, timelines)
+        if verbose:
+            ui.details(result["postmortem"])
         return 0
     except Exception:
         if (RUNS_DIR / run_id).exists():
@@ -127,26 +140,113 @@ def main() -> int:
         raise
 
 
-def _worker_summary(timelines: list[dict]) -> str:
-    lines = ["Worker logs:"]
-    for timeline in timelines:
-        worktree = REPO_ROOT / timeline["worktree"]
-        log_path = worktree / "worker.log"
-        lines.append(
-            f"- {timeline['id']} {timeline['status']}: "
-            f"{log_path.relative_to(REPO_ROOT)}"
+class RehearsalUI:
+    def __init__(self, mode: str, verbose: bool) -> None:
+        self.mode = mode
+        self.verbose = verbose
+        try:
+            from rich.console import Console
+
+            self.console = Console()
+        except ImportError:
+            self.console = None
+
+    def header(self) -> None:
+        label = "LIVE CODEX WORKERS" if self.mode == "--real-workers" else "FAST LOCAL REHEARSAL"
+        self._print(f"\nEVERETT  |  {label}", "bold cyan")
+        self._print("Fork. Judge. Collapse.\n", "dim")
+
+    def phase(self, number: str, label: str) -> None:
+        self._print(f"[{number}] {label}", "bold cyan")
+
+    def run_id(self, run_id: str) -> None:
+        self._print(f"Run {run_id} created.\n", "dim")
+
+    def workers(self, timelines: list[dict]) -> None:
+        rows = [
+            (timeline["id"], TIMELINE_NAMES[index], timeline["status"].upper())
+            for index, timeline in enumerate(timelines)
+        ]
+        if self.console is None:
+            print("\nWORKERS")
+            for timeline_id, name, status in rows:
+                print(f"  {timeline_id}  {name:<14} {status}")
+            return
+
+        from rich.table import Table
+
+        table = Table(title="Workers", show_edge=False, pad_edge=False)
+        table.add_column("Timeline", style="bold cyan")
+        table.add_column("Strategy")
+        table.add_column("Status", justify="right")
+        for timeline_id, name, status in rows:
+            style = "green" if status == "SUCCEEDED" else "red"
+            table.add_row(timeline_id, name, f"[{style}]{status}[/{style}]")
+        self.console.print(table)
+
+    def scoreboard(self, scoreboard: list[dict], winner: str) -> None:
+        if self.console is None:
+            print("\nSCOREBOARD")
+            for entry in scoreboard:
+                mark = "WINNER" if entry["timeline"] == winner else ""
+                print(
+                    f"  {entry['timeline']}  {entry['speedup']:.2f}x  "
+                    f"{entry['p50_ms']:.1f} ms  score {entry['score']:.2f} {mark}"
+                )
+            return
+
+        from rich.table import Table
+
+        table = Table(title="Scoreboard", show_edge=False, pad_edge=False)
+        table.add_column("Timeline", style="bold cyan")
+        table.add_column("Tests")
+        table.add_column("p50", justify="right")
+        table.add_column("Speedup", justify="right")
+        table.add_column("Diff", justify="right")
+        table.add_column("Score", justify="right")
+        for entry in scoreboard:
+            is_winner = entry["timeline"] == winner
+            style = "bold green" if is_winner else ""
+            label = "WINNER" if is_winner else ""
+            table.add_row(
+                f"{entry['timeline']} {label}".rstrip(),
+                "PASS" if entry["tests_passed"] else "FAIL",
+                f"{entry['p50_ms']:.1f} ms",
+                f"{entry['speedup']:.2f}x",
+                str(entry["diff_lines"]),
+                f"{entry['score']:.2f}",
+                style=style,
+            )
+        self.console.print(table)
+
+    def result(self, run_id: str, winner: str, timelines: list[dict]) -> None:
+        winner_timeline = next(timeline for timeline in timelines if timeline["id"] == winner)
+        message = (
+            f"WINNER  {winner} - {TIMELINE_NAMES[ord(winner) - ord('A')]}\n"
+            "Result branch  everett/result\n"
+            f"Kept strategy  {winner_timeline['strategy']}"
         )
-        tail = _tail(log_path)
-        if tail:
-            lines.append(f"  tail: {tail}")
-    return "\n".join(lines)
+        if self.console is None:
+            print(f"\n{message}\n")
+            return
 
+        from rich.panel import Panel
 
-def _tail(path: Path, count: int = 2) -> str:
-    if not path.exists():
-        return ""
-    lines = path.read_text(errors="replace").splitlines()
-    return " / ".join(line.strip() for line in lines[-count:] if line.strip())
+        self.console.print(Panel.fit(message, title="Collapse complete", border_style="green"))
+        self._print("\nUse scripts/reset_demo.sh before the next rehearsal.\n", "dim")
+
+    def details(self, postmortem: str) -> None:
+        self._print("\nDETAILS", "bold yellow")
+        self._print(postmortem, "dim")
+
+    def failure(self, message: str) -> None:
+        self._print(message, "bold red")
+
+    def _print(self, message: str, style: str = "") -> None:
+        if self.console is None:
+            print(message)
+        else:
+            self.console.print(message, style=style)
 
 
 raise SystemExit(main())
