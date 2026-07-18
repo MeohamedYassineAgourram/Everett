@@ -1,6 +1,10 @@
 from fastapi.testclient import TestClient
 
-from app import app
+from app import CUSTOMER_COUNT, ORDER_COUNT, app
+
+
+def expected_total(customer_id: int) -> int:
+    return sum((order_id % 97) + 3 for order_id in range(customer_id, ORDER_COUNT, CUSTOMER_COUNT))
 
 
 def test_report_is_correct():
@@ -8,6 +12,7 @@ def test_report_is_correct():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["count"] == 5000
-    assert payload["groups"]["0"] == sum(range(0, 5000, 10))
-    assert payload["groups"]["9"] == sum(range(9, 5000, 10))
+    assert payload["count"] == CUSTOMER_COUNT
+    assert payload["order_count"] == ORDER_COUNT
+    assert payload["customers"]["Customer 000"] == expected_total(0)
+    assert payload["customers"]["Customer 249"] == expected_total(249)
