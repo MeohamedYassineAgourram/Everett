@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import shutil
 import subprocess
+import time
 import uuid
 from pathlib import Path
+from typing import Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = REPO_ROOT / "runs"
 BASE_BRANCH = "main"
+WORKER_TIMEOUT_SECONDS = 6 * 60
+WORKER_SUFFIX = "Run the tests. Commit your changes when they pass."
 
 
 def _run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -33,6 +39,141 @@ def _timeline_id(index: int) -> str:
 
 def _state_path(run_id: str) -> Path:
     return RUNS_DIR / run_id / "state.json"
+
+
+def _load_state(run_id: str) -> dict:
+    return json.loads(_state_path(run_id).read_text())
+
+
+def _write_state(state: dict) -> None:
+    state_path = _state_path(state["run_id"])
+    tmp_path = state_path.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(state, indent=2) + "\n")
+    tmp_path.replace(state_path)
+
+
+def _run_id_from_timelines(timelines: list[dict]) -> str:
+    if not timelines:
+        raise ValueError("Cannot launch workers without timelines")
+    parts = Path(timelines[0]["worktree"]).parts
+    if len(parts) < 2 or parts[0] != "runs":
+        raise ValueError(f"Unexpected worktree path: {timelines[0]['worktree']!r}")
+    return parts[1]
+
+
+def _worker_prompt(strategy: str) -> str:
+    return f"{strategy}\n\n{WORKER_SUFFIX}"
+
+
+def _default_worker_command(worktree: Path, prompt: str) -> list[str]:
+    codex_bin = os.environ.get("EVERETT_CODEX_BIN", "codex")
+    return [
+        codex_bin,
+        "exec",
+        "--cd",
+        str(worktree),
+        "--sandbox",
+        "workspace-write",
+        "--json",
+        prompt,
+    ]
+
+
+def _worker_command(
+    worktree: Path,
+    prompt: str,
+    worker_command: Sequence[str] | None,
+) -> list[str]:
+    if worker_command is None:
+        return _default_worker_command(worktree, prompt)
+    return [*worker_command, str(worktree), prompt]
+
+
+async def launch_workers(
+    timelines: list[dict],
+    *,
+    worker_command: Sequence[str] | None = None,
+    timeout_seconds: int = WORKER_TIMEOUT_SECONDS,
+) -> list[dict]:
+    run_id = _run_id_from_timelines(timelines)
+    state = _load_state(run_id)
+    state_lock = asyncio.Lock()
+
+    async def set_status(timeline_id: str, status: str) -> None:
+        async with state_lock:
+            for timeline in state["timelines"]:
+                if timeline["id"] == timeline_id:
+                    timeline["status"] = status
+                    break
+            _write_state(state)
+
+    await asyncio.gather(
+        *[
+            _run_worker(timeline, set_status, worker_command, timeout_seconds)
+            for timeline in timelines[:3]
+        ]
+    )
+    return _load_state(run_id)["timelines"]
+
+
+async def _run_worker(
+    timeline: dict,
+    set_status,
+    worker_command: Sequence[str] | None,
+    timeout_seconds: int,
+) -> None:
+    worktree = REPO_ROOT / timeline["worktree"]
+    log_path = worktree / "worker.log"
+    prompt = _worker_prompt(timeline["strategy"])
+    command = _worker_command(worktree, prompt, worker_command)
+    before_head = _git_head(worktree)
+
+    await set_status(timeline["id"], "running")
+    started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    with log_path.open("w") as log:
+        log.write(f"[everett] timeline={timeline['id']} started={started_at}\n")
+        log.write(f"[everett] strategy={timeline['strategy']}\n")
+        log.flush()
+
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=worktree,
+            stdout=log,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+
+        try:
+            returncode = await asyncio.wait_for(process.wait(), timeout_seconds)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            log.write(f"\n[everett] timeout after {timeout_seconds}s\n")
+            await set_status(timeline["id"], "timeout")
+            return
+
+        after_head = _git_head(worktree)
+        if returncode == 0 and after_head != before_head:
+            status = "succeeded"
+        elif returncode == 0:
+            status = "failed"
+            log.write("\n[everett] worker exited 0 but did not create a commit\n")
+        else:
+            status = "failed"
+
+        log.write(f"\n[everett] exit_code={returncode} status={status}\n")
+        await set_status(timeline["id"], status)
+
+
+def _git_head(path: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=path,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return result.stdout.strip()
 
 
 def create_timelines(strategies: list[str]) -> dict:
@@ -85,4 +226,3 @@ def cleanup(run_id: str) -> None:
         _run_git("branch", "-D", timeline["branch"], check=False)
 
     shutil.rmtree(RUNS_DIR / run_id, ignore_errors=True)
-

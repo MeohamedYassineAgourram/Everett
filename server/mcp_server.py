@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -10,7 +11,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from server.fitness import score_path
-from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines
+from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
 
 
 mcp = FastMCP(
@@ -21,16 +22,26 @@ mcp = FastMCP(
     ),
 )
 
-
-@mcp.tool
-def fork(strategies: list[str]) -> dict:
-    """Create Everett timelines for up to three strategies."""
-    return create_timelines(strategies[:3])
+_worker_tasks: dict[str, asyncio.Task] = {}
 
 
 @mcp.tool
-def judge(run_id: str) -> dict:
+async def fork(strategies: list[str]) -> dict:
+    """Create Everett timelines and launch headless workers."""
+    state = create_timelines(strategies[:3])
+    _worker_tasks[state["run_id"]] = asyncio.create_task(
+        launch_workers(state["timelines"])
+    )
+    return state
+
+
+@mcp.tool
+async def judge(run_id: str) -> dict:
     """Score every timeline for a run."""
+    task = _worker_tasks.get(run_id)
+    if task is not None:
+        await task
+
     state = _load_state(run_id)
     scoreboard = []
 
