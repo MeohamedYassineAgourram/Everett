@@ -153,6 +153,10 @@ async def _run_worker(
             return
 
         after_head = _git_head(worktree)
+        if returncode == 0 and after_head == before_head and _has_changes(worktree):
+            _commit_worker_changes(worktree, timeline)
+            after_head = _git_head(worktree)
+
         if returncode == 0 and after_head != before_head:
             status = "succeeded"
         elif returncode == 0:
@@ -174,6 +178,37 @@ def _git_head(path: Path) -> str:
         capture_output=True,
     )
     return result.stdout.strip()
+
+
+def _has_changes(path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=path,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def _commit_worker_changes(path: Path, timeline: dict) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Everett Worker",
+            "-c",
+            "user.email=worker@example.com",
+            "commit",
+            "-m",
+            f"Everett {timeline['id']}: {timeline['strategy'][:60]}",
+        ],
+        cwd=path,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
 
 
 def create_timelines(strategies: list[str]) -> dict:

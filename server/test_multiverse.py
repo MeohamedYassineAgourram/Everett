@@ -119,3 +119,33 @@ subprocess.run(
     finally:
         if (REPO_ROOT / "runs" / run_id).exists():
             cleanup(run_id)
+
+
+def test_launch_workers_commits_successful_dirty_worktree():
+    state = create_timelines(["write a marker"])
+    run_id = state["run_id"]
+    fake_worker = """
+import pathlib
+import sys
+
+worktree = pathlib.Path(sys.argv[1])
+(worktree / "worker-output.txt").write_text("changed by worker\\n")
+"""
+
+    try:
+        timelines = asyncio.run(
+            launch_workers(
+                state["timelines"],
+                worker_command=[sys.executable, "-c", fake_worker],
+                timeout_seconds=10,
+            )
+        )
+        worktree = REPO_ROOT / state["timelines"][0]["worktree"]
+
+        assert timelines[0]["status"] == "succeeded"
+        assert _git_output(["log", "-1", "--format=%s"], worktree).startswith(
+            "Everett A: write a marker"
+        )
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
