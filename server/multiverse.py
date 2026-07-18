@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = REPO_ROOT / "runs"
 BASE_BRANCH = "main"
 WORKER_TIMEOUT_SECONDS = 6 * 60
-WORKER_SUFFIX = "Run the tests. Commit your changes when they pass."
+WORKER_SUFFIX = "Run `python -m pytest demo/slowapi`. Commit your changes when they pass."
 
 
 def _run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:

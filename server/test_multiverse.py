@@ -5,7 +5,14 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from server.multiverse import REPO_ROOT, RUNS_DIR, cleanup, create_timelines, launch_workers
+from server.multiverse import (
+    REPO_ROOT,
+    RUNS_DIR,
+    WORKER_SUFFIX,
+    cleanup,
+    create_timelines,
+    launch_workers,
+)
 from server.postmortem import generate_postmortem
 
 
@@ -111,7 +118,7 @@ subprocess.run(
         for timeline in state["timelines"]:
             worktree = REPO_ROOT / timeline["worktree"]
             assert (worktree / "worker.log").is_file()
-            assert "Run the tests. Commit your changes when they pass." in (
+            assert WORKER_SUFFIX in (
                 worktree / "worker-output.txt"
             ).read_text()
             assert _git_output(["log", "-1", "--format=%s"], worktree) == (
