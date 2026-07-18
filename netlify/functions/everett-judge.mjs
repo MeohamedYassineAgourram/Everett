@@ -204,7 +204,9 @@ export default async (request) => {
 
   let input;
   try {
-    input = validateInput(await request.json());
+    const body = await request.json();
+    const suppliedInput = body && typeof body === "object" && !Array.isArray(body) && "input" in body ? body.input : body;
+    input = validateInput(suppliedInput);
   } catch (error) {
     return fail("invalid_input", error instanceof Error ? error.message : "Input must be valid JSON.", 400);
   }
