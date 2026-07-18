@@ -107,7 +107,23 @@ const nodes = nodePositions.map((position, index) => makeNode(position, index));
 const paths = nodePositions.map((position) => makePath(position));
 paths.forEach((path) => scene.add(path));
 
-let state = { phase: "ready", timelines: [], scoreboard: [], winner: null };
+const hostedDemoState = {
+  run_id: "DEMO-01",
+  phase: "collapsed",
+  winner: "B",
+  timelines: [
+    { id: "A", strategy: "Add a response cache while preserving report correctness.", status: "succeeded" },
+    { id: "B", strategy: "Eliminate the N+1 query pattern in the report path.", status: "succeeded" },
+    { id: "C", strategy: "Precompute report summaries before serving requests.", status: "succeeded" },
+  ],
+  scoreboard: [
+    { timeline: "A", tests_passed: true, speedup: 2.18, diff_lines: 31, score: 2.03 },
+    { timeline: "B", tests_passed: true, speedup: 11.42, diff_lines: 44, score: 11.2 },
+    { timeline: "C", tests_passed: true, speedup: 8.93, diff_lines: 86, score: 8.5 },
+  ],
+};
+
+let state = hostedDemoState;
 
 function makeNode(position, index) {
   const group = new THREE.Group();
@@ -219,5 +235,6 @@ async function refresh() {
   try { applyState(await (await fetch("/api/state", { cache: "no-store" })).json()); } catch (_) {}
 }
 addEventListener("resize", () => { if (renderer) { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); } });
+applyState(hostedDemoState);
 refresh();
 setInterval(refresh, 1000);
