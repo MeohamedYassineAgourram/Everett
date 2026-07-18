@@ -29,7 +29,7 @@ _worker_tasks: dict[str, asyncio.Task] = {}
 @mcp.tool
 async def fork(strategies: list[str]) -> dict:
     """Create Everett timelines and launch headless workers."""
-    state = create_timelines(strategies[:3])
+    state = create_timelines(strategies)
     _worker_tasks[state["run_id"]] = asyncio.create_task(
         launch_workers(state["timelines"])
     )

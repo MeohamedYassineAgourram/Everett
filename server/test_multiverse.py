@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from server.multiverse import (
     REPO_ROOT,
@@ -63,6 +65,20 @@ def test_create_timelines_and_cleanup():
     finally:
         if (REPO_ROOT / "runs" / run_id).exists():
             cleanup(run_id)
+
+
+def test_create_timelines_rejects_invalid_or_occupied_timeline_branches():
+    with pytest.raises(ValueError, match="between one and three"):
+        create_timelines([])
+    with pytest.raises(ValueError, match="between one and three"):
+        create_timelines(["A", "B", "C", "D"])
+
+    state = create_timelines(["first run"])
+    try:
+        with pytest.raises(RuntimeError, match="everett/A"):
+            create_timelines(["second run"])
+    finally:
+        cleanup(state["run_id"])
 
 
 def test_launch_workers_commits_and_updates_state():

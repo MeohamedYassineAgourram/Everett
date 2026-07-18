@@ -222,6 +222,18 @@ def _commit_worker_changes(path: Path, timeline: dict) -> None:
 
 
 def create_timelines(strategies: list[str]) -> dict:
+    if not 1 <= len(strategies) <= 3:
+        raise ValueError("Everett supports between one and three strategies per run")
+
+    branches = [f"everett/{_timeline_id(index)}" for index in range(len(strategies))]
+    occupied = [branch for branch in branches if _branch_exists(branch)]
+    if occupied:
+        joined = ", ".join(occupied)
+        raise RuntimeError(
+            f"Everett timeline branches are already in use: {joined}. "
+            "Collapse or clean up the active run before forking again."
+        )
+
     run_id = uuid.uuid4().hex[:8]
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -230,7 +242,7 @@ def create_timelines(strategies: list[str]) -> dict:
     try:
         for index, strategy in enumerate(strategies):
             timeline_id = _timeline_id(index)
-            branch = f"everett/{timeline_id}"
+            branch = branches[index]
             worktree = f"runs/{run_id}/{timeline_id}"
 
             _run_git("worktree", "add", "-b", branch, worktree, BASE_BRANCH)
@@ -254,6 +266,10 @@ def create_timelines(strategies: list[str]) -> dict:
     state = {"run_id": run_id, "timelines": timelines}
     _state_path(run_id).write_text(json.dumps(state, indent=2) + "\n")
     return state
+
+
+def _branch_exists(branch: str) -> bool:
+    return _run_git("show-ref", "--verify", "--quiet", f"refs/heads/{branch}", check=False).returncode == 0
 
 
 def cleanup(run_id: str) -> None:
