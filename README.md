@@ -2,20 +2,69 @@
 
 An MCP server that gives Codex fork/judge/collapse over parallel git worktrees.
 
-Pre-flight is in progress. Full run instructions land at freeze time.
+Humans get undo. Codex gets do-over.
 
 ## Golden-Path Prompt
 
 The endpoint in `demo/slowapi` is too slow. Use Everett: fork three strategies — add a caching layer; rewrite the query to eliminate N+1; precompute a summary table — then judge and collapse to the best.
 
-## Pre-flight Notes
+## Setup
+
+```bash
+uv venv --python 3.11
+uv pip install pytest fastapi uvicorn httpx rich fastmcp
+```
+
+Register the MCP server with Codex:
+
+```bash
+codex mcp add everett -- "$PWD/.venv/bin/python" "$PWD/server/mcp_server.py"
+```
+
+Use this approval override for unattended MCP smoke tests:
+
+```bash
+-c 'mcp_servers.everett.default_tools_approval_mode="approve"'
+```
+
+## Verify
+
+Run tests:
+
+```bash
+.venv/bin/pytest
+```
+
+Run the fast full-loop rehearsal:
+
+```bash
+scripts/dry_run.sh
+```
+
+Run the real-worker rehearsal with three headless Codex workers:
+
+```bash
+scripts/dry_run.sh --real-workers
+```
+
+Reset generated demo state:
+
+```bash
+scripts/reset_demo.sh
+```
+
+Do not run `scripts/reset_demo.sh` or `scripts/dry_run.sh` while tests or another Everett run are active; reset intentionally removes runtime worktrees under `runs/`.
+
+## MCP Smoke
+
+```bash
+codex exec -c 'mcp_servers.everett.default_tools_approval_mode="approve"' --sandbox read-only --ephemeral --json "Use the Everett MCP server's fork tool with strategies ['cache responses', 'rewrite query', 'precompute summary']. Do not run shell commands or read files. Return the tool result JSON and nothing else."
+```
+
+## Notes
 
 - Codex CLI: `codex exec` is installed and non-interactive mode returned `codex-ok`.
 - Worker baseline flags: `codex exec --cd <worktree> --sandbox workspace-write --json "<prompt>"`.
 - Useful unattended flags from `codex exec --help`: `--ephemeral`, `--skip-git-repo-check`, `--output-last-message <FILE>`, `--config <key=value>`.
 - Avoid `--dangerously-bypass-approvals-and-sandbox` unless the outer demo environment is already sandboxed.
 - Python env: `.venv` uses CPython 3.11.15; activate with `source .venv/bin/activate`.
-- MCP server registered as `everett`:
-  `codex mcp add everett -- /Users/mohamedyassineagourram/Desktop/HACKATHONS/Everett/.venv/bin/python /Users/mohamedyassineagourram/Desktop/HACKATHONS/Everett/server/mcp_server.py`
-- MCP smoke test:
-  `codex exec -c 'mcp_servers.everett.default_tools_approval_mode="approve"' --sandbox read-only --ephemeral --json "Use the Everett MCP server's fork tool with strategies ['cache responses', 'rewrite query', 'precompute summary']. Do not run shell commands or read files. Return the tool result JSON and nothing else."`
