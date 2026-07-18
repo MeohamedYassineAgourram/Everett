@@ -10,6 +10,47 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_MS = 1000.0
 
 
+def render_scoreboard(scoreboard: list[dict]) -> str:
+    """Render judge output for a terminal or projector without changing its JSON API."""
+    headers = ("Timeline", "Tests", "p50", "Speedup", "Diff", "Score")
+    rows = [
+        (
+            str(entry.get("timeline", "-")),
+            "PASS" if entry["tests_passed"] else "FAIL",
+            f"{entry['p50_ms']:.1f} ms",
+            f"{entry['speedup']:.2f}x",
+            str(entry["diff_lines"]),
+            f"{entry['score']:.2f}",
+        )
+        for entry in scoreboard
+    ]
+
+    try:
+        from rich.console import Console
+        from rich.table import Table
+    except ImportError:
+        widths = [
+            max(len(header), *(len(row[index]) for row in rows))
+            for index, header in enumerate(headers)
+        ]
+        divider = "-+-".join("-" * width for width in widths)
+        formatted_rows = [
+            " | ".join(value.ljust(widths[index]) for index, value in enumerate(row))
+            for row in rows
+        ]
+        return "\n".join((" | ".join(headers), divider, *formatted_rows))
+
+    table = Table(title="EVERETT · Timeline Scoreboard", header_style="bold cyan")
+    for header in headers:
+        table.add_column(header, justify="right" if header != "Timeline" else "left")
+    for row in rows:
+        table.add_row(*row, style="green" if row[1] == "PASS" else "bold red")
+
+    console = Console(record=True, width=100)
+    console.print(table)
+    return console.export_text()
+
+
 def _run(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, cwd=cwd, text=True, capture_output=True)
 
