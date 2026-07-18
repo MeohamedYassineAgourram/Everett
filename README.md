@@ -29,6 +29,14 @@ Use this approval override for unattended MCP smoke tests:
 
 ## Verify
 
+Launch the full projector demo in one command:
+
+```bash
+scripts/demo.sh
+```
+
+It opens a four-pane tmux session: the Everett control panel plus three live worker timelines. Use `scripts/demo.sh --fast` for the deterministic no-model-credit backup. Detach with `Ctrl-b`, then `d`; end a completed session with `tmux kill-session -t everett-demo`.
+
 Run tests:
 
 ```bash
