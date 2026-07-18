@@ -14,7 +14,9 @@ from typing import Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = REPO_ROOT / "runs"
 BASE_BRANCH = "main"
-WORKER_TIMEOUT_SECONDS = 6 * 60
+# Codex's MCP client allows five minutes per tool call. Leave a full minute for
+# judging and the response so a root session can still receive the scoreboard.
+WORKER_TIMEOUT_SECONDS = 4 * 60
 WORKER_SUFFIX = "Run `python -m pytest demo/slowapi`. Commit your changes when they pass."
 
 
@@ -136,13 +138,21 @@ async def _run_worker(
         log.write(f"[everett] strategy={timeline['strategy']}\n")
         log.flush()
 
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            cwd=worktree,
-            stdout=log,
-            stderr=asyncio.subprocess.STDOUT,
-            env=_worker_environment(),
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=worktree,
+                # The MCP server itself communicates over stdin. Workers must not
+                # inherit that pipe or Codex will wait for more prompt input.
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=log,
+                stderr=asyncio.subprocess.STDOUT,
+                env=_worker_environment(),
+            )
+        except OSError as error:
+            log.write(f"\n[everett] could not start worker: {error}\n")
+            await set_status(timeline["id"], "failed")
+            return
 
         try:
             returncode = await asyncio.wait_for(process.wait(), timeout_seconds)

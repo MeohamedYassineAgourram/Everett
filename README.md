@@ -63,6 +63,14 @@ Do not run `scripts/reset_demo.sh` or `scripts/dry_run.sh` while tests or anothe
 4. If model calls stall, run `scripts/dry_run.sh` as the backup path.
 5. Show the scoreboard, winner, `everett/result`, and the postmortem bullets.
 
+While a live MCP `fork()` is running, show its three worker logs with:
+
+```bash
+scripts/watch_timelines.sh <run-id>
+```
+
+Install the one local presentation dependency with `brew install tmux`.
+
 ## MCP Smoke
 
 ```bash
@@ -73,6 +81,7 @@ codex exec -c 'mcp_servers.everett.default_tools_approval_mode="approve"' --sand
 
 - Codex CLI: `codex exec` is installed and non-interactive mode returned `codex-ok`.
 - Worker baseline flags: `codex exec --cd <worktree> --sandbox workspace-write --json "<prompt>"`.
+- Worker timeout: 4 minutes, leaving enough time for `judge()` to score and answer within Codex MCP's 5-minute tool-call limit.
 - Useful unattended flags from `codex exec --help`: `--ephemeral`, `--skip-git-repo-check`, `--output-last-message <FILE>`, `--config <key=value>`.
 - Avoid `--dangerously-bypass-approvals-and-sandbox` unless the outer demo environment is already sandboxed.
 - Python env: `.venv` uses CPython 3.11.15; activate with `source .venv/bin/activate`.

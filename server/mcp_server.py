@@ -41,7 +41,9 @@ async def judge(run_id: str) -> dict:
     """Score every timeline for a run."""
     task = _worker_tasks.get(run_id)
     if task is not None:
-        await task
+        # A client-side MCP timeout cancels this tool call; it must not cancel
+        # the shared worker task because a later judge retry can still finish it.
+        await asyncio.shield(task)
 
     state = _load_state(run_id)
     scoreboard = []
@@ -56,6 +58,10 @@ async def judge(run_id: str) -> dict:
 @mcp.tool
 def collapse(run_id: str, winner: str) -> dict:
     """Point everett/result at the winning timeline branch."""
+    task = _worker_tasks.get(run_id)
+    if task is not None and not task.done():
+        raise RuntimeError("Workers are still running; call judge before collapse")
+
     state = _load_state(run_id)
     timeline = _find_timeline(state, winner)
     _run_git("branch", "-f", "everett/result", timeline["branch"])

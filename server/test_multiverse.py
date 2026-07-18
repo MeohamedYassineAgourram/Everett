@@ -2,6 +2,7 @@ import asyncio
 import json
 import subprocess
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -11,10 +12,12 @@ from server.multiverse import (
     REPO_ROOT,
     RUNS_DIR,
     WORKER_SUFFIX,
+    _run_worker,
     cleanup,
     create_timelines,
     launch_workers,
 )
+from server import mcp_server
 from server.postmortem import generate_postmortem
 
 
@@ -199,6 +202,116 @@ time.sleep(5)
         assert saved["timelines"][0]["status"] == "timeout"
         assert "timeout after 1s" in (worktree / "worker.log").read_text()
         assert _git_output(["rev-list", "--count", "main..HEAD"], worktree) == "0"
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
+
+
+def test_launch_workers_marks_startup_error_as_failed():
+    state = create_timelines(["run a missing worker"])
+    run_id = state["run_id"]
+
+    try:
+        timelines = asyncio.run(
+            launch_workers(
+                state["timelines"],
+                worker_command=["everett-missing-worker-command"],
+                timeout_seconds=10,
+            )
+        )
+        log_path = REPO_ROOT / state["timelines"][0]["worktree"] / "worker.log"
+
+        assert timelines[0]["status"] == "failed"
+        assert "could not start worker" in log_path.read_text()
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
+
+
+def test_worker_detaches_mcp_stdin(monkeypatch):
+    state = create_timelines(["verify detached stdin"])
+    run_id = state["run_id"]
+    captured: dict = {}
+
+    class FailedProcess:
+        async def wait(self) -> int:
+            return 1
+
+    async def fake_subprocess(*args, **kwargs):
+        captured.update(kwargs)
+        return FailedProcess()
+
+    async def set_status(_: str, __: str) -> None:
+        return None
+
+    try:
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess)
+        asyncio.run(
+            _run_worker(
+                state["timelines"][0],
+                set_status,
+                worker_command=["fake-worker"],
+                timeout_seconds=10,
+            )
+        )
+
+        assert captured["stdin"] is asyncio.subprocess.DEVNULL
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
+
+
+def test_collapse_rejects_a_run_with_active_workers():
+    state = create_timelines(["wait for worker"])
+    run_id = state["run_id"]
+
+    async def attempt_collapse() -> None:
+        task = asyncio.create_task(asyncio.sleep(60))
+        mcp_server._worker_tasks[run_id] = task
+        try:
+            with pytest.raises(RuntimeError, match="Workers are still running"):
+                mcp_server.collapse(run_id, "A")
+        finally:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+            mcp_server._worker_tasks.pop(run_id, None)
+
+    try:
+        asyncio.run(attempt_collapse())
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
+
+
+def test_judge_retry_does_not_cancel_workers_after_client_timeout(monkeypatch):
+    state = create_timelines(["wait for a retry"])
+    run_id = state["run_id"]
+
+    async def verify_shielding() -> None:
+        worker_task = asyncio.create_task(asyncio.sleep(0.1))
+        mcp_server._worker_tasks[run_id] = worker_task
+        try:
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(mcp_server.judge(run_id), timeout=0.01)
+            assert not worker_task.cancelled()
+            await worker_task
+        finally:
+            mcp_server._worker_tasks.pop(run_id, None)
+
+    monkeypatch.setattr(
+        mcp_server,
+        "score_path",
+        lambda _: {
+            "tests_passed": True,
+            "p50_ms": 1.0,
+            "speedup": 1.0,
+            "diff_lines": 0,
+            "score": 1.0,
+        },
+    )
+    try:
+        asyncio.run(verify_shielding())
     finally:
         if (REPO_ROOT / "runs" / run_id).exists():
             cleanup(run_id)

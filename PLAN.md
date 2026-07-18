@@ -76,7 +76,7 @@ collapse(run_id: str, winner: str) -> {
 
 - **Language/stack:** Python 3.11+, `pytest`, `fastapi`, `uvicorn`, `httpx`, `rich`. MCP via the official Python SDK or FastMCP — whichever gets hello-world working first.
 - **Scoring:** tests passing is a **hard gate**. Among passers: `score = speedup − 0.005 × diff_lines`. Highest wins. Simple beats clever.
-- **Worker:** `codex exec` running inside the timeline's worktree, prompt = strategy + fixed suffix: *"Run the tests. Commit your changes when they pass."* Hard timeout: 6 minutes, then kill.
+- **Worker:** `codex exec` running inside the timeline's worktree, prompt = strategy + fixed suffix: *"Run the tests. Commit your changes when they pass."* Hard timeout: 4 minutes, then kill. This leaves margin under Codex MCP's 5-minute tool-call limit for judging and the response.
 - **Collapse = no merging.** Point a fresh `everett/result` branch at the winner's branch (`git branch -f` / checkout). Three-way merges are where hackathon demos go to die.
 - **Parallelism cap:** n = 3 timelines. Protects rate limits and fits three tmux panes on a projector.
 
@@ -106,7 +106,7 @@ If MCP wiring works, everything else is plumbing you control. Prove it in the fi
 - [ ] Create/destroy worktrees: `git worktree add -b everett/A runs/<run_id>/A main` (and `git worktree prune` in cleanup)
 - [ ] Spawn ONE headless worker in a worktree; confirm it actually edits files and commits
 - [ ] Then 3 concurrently (`asyncio.create_subprocess_exec`), statuses + worker logs written to `runs/<run_id>/state.json` and `runs/<run_id>/<id>/worker.log`
-- [ ] Timeout + kill logic (6 min cap per worker)
+- [ ] Timeout + kill logic (4 min cap per worker)
 
 **P2 — The Judge (`demo/slowapi` + `fitness.py`):**
 - [ ] Demo target: FastAPI `GET /report` that is *honestly* slow — N+1 SQLite queries over ~50k generated rows (or an O(n²) aggregation). It must be slow for a real reason so real strategies really differ.
