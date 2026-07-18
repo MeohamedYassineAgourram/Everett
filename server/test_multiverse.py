@@ -149,3 +149,32 @@ worktree = pathlib.Path(sys.argv[1])
     finally:
         if (REPO_ROOT / "runs" / run_id).exists():
             cleanup(run_id)
+
+
+def test_launch_workers_marks_timeout():
+    state = create_timelines(["sleep too long"])
+    run_id = state["run_id"]
+    fake_worker = """
+import time
+
+time.sleep(5)
+"""
+
+    try:
+        timelines = asyncio.run(
+            launch_workers(
+                state["timelines"],
+                worker_command=[sys.executable, "-c", fake_worker],
+                timeout_seconds=1,
+            )
+        )
+        saved = json.loads((RUNS_DIR / run_id / "state.json").read_text())
+        worktree = REPO_ROOT / state["timelines"][0]["worktree"]
+
+        assert timelines[0]["status"] == "timeout"
+        assert saved["timelines"][0]["status"] == "timeout"
+        assert "timeout after 1s" in (worktree / "worker.log").read_text()
+        assert _git_output(["rev-list", "--count", "main..HEAD"], worktree) == "0"
+    finally:
+        if (REPO_ROOT / "runs" / run_id).exists():
+            cleanup(run_id)
