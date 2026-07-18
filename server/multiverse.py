@@ -141,6 +141,7 @@ async def _run_worker(
             cwd=worktree,
             stdout=log,
             stderr=asyncio.subprocess.STDOUT,
+            env=_worker_environment(),
         )
 
         try:
@@ -178,6 +179,15 @@ def _git_head(path: Path) -> str:
         capture_output=True,
     )
     return result.stdout.strip()
+
+
+def _worker_environment() -> dict[str, str]:
+    """Make the project virtual environment available inside each worktree."""
+    environment = os.environ.copy()
+    venv_bin = REPO_ROOT / ".venv" / "bin"
+    if venv_bin.is_dir():
+        environment["PATH"] = f"{venv_bin}{os.pathsep}{environment.get('PATH', '')}"
+    return environment
 
 
 def _has_changes(path: Path) -> bool:
