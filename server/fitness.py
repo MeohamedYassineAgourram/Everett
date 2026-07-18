@@ -88,7 +88,7 @@ def _diff_lines(path: Path) -> int:
 
 
 def score_path(path: str | Path) -> dict:
-    repo_path = Path(path)
+    repo_path = Path(path).resolve()
     pytest_target = repo_path / "demo" / "slowapi"
     command = [_python_for(repo_path), "-m", "pytest", str(pytest_target)]
     result = _run(command, cwd=repo_path)
