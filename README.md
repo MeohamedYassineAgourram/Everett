@@ -4,6 +4,10 @@ An MCP server that gives Codex fork/judge/collapse over parallel git worktrees.
 
 Pre-flight is in progress. Full run instructions land at freeze time.
 
+## Golden-Path Prompt
+
+The endpoint in `demo/slowapi` is too slow. Use Everett: fork three strategies — add a caching layer; rewrite the query to eliminate N+1; precompute a summary table — then judge and collapse to the best.
+
 ## Pre-flight Notes
 
 - Codex CLI: `codex exec` is installed and non-interactive mode returned `codex-ok`.
