@@ -55,6 +55,14 @@ scripts/reset_demo.sh
 
 Do not run `scripts/reset_demo.sh` or `scripts/dry_run.sh` while tests or another Everett run are active; reset intentionally removes runtime worktrees under `runs/`.
 
+## Demo Checklist
+
+1. Run `scripts/reset_demo.sh`.
+2. Start screen recording.
+3. Run `scripts/dry_run.sh --real-workers`.
+4. If model calls stall, run `scripts/dry_run.sh` as the backup path.
+5. Show the scoreboard, winner, `everett/result`, and the postmortem bullets.
+
 ## MCP Smoke
 
 ```bash

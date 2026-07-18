@@ -30,6 +30,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from server.fitness import render_scoreboard, score_path
 from server.mcp_server import collapse
@@ -95,6 +96,7 @@ def main() -> int:
             scoreboard.append({"timeline": timeline["id"], **scores})
 
         print(f"Everett dry run: {run_id}")
+        print(_worker_summary(timelines))
         print(render_scoreboard(scoreboard))
 
         passing = [entry for entry in scoreboard if entry["tests_passed"]]
@@ -123,6 +125,28 @@ def main() -> int:
         if (RUNS_DIR / run_id).exists():
             cleanup(run_id)
         raise
+
+
+def _worker_summary(timelines: list[dict]) -> str:
+    lines = ["Worker logs:"]
+    for timeline in timelines:
+        worktree = REPO_ROOT / timeline["worktree"]
+        log_path = worktree / "worker.log"
+        lines.append(
+            f"- {timeline['id']} {timeline['status']}: "
+            f"{log_path.relative_to(REPO_ROOT)}"
+        )
+        tail = _tail(log_path)
+        if tail:
+            lines.append(f"  tail: {tail}")
+    return "\n".join(lines)
+
+
+def _tail(path: Path, count: int = 2) -> str:
+    if not path.exists():
+        return ""
+    lines = path.read_text(errors="replace").splitlines()
+    return " / ".join(line.strip() for line in lines[-count:] if line.strip())
 
 
 raise SystemExit(main())
