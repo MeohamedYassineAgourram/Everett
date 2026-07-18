@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from io import StringIO
 from pathlib import Path
 
 
@@ -46,7 +47,7 @@ def render_scoreboard(scoreboard: list[dict]) -> str:
     for row in rows:
         table.add_row(*row, style="green" if row[1] == "PASS" else "bold red")
 
-    console = Console(record=True, width=100)
+    console = Console(file=StringIO(), record=True, width=100)
     console.print(table)
     return console.export_text()
 
