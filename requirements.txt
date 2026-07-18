@@ -1,0 +1,6 @@
+fastapi
+fastmcp
+httpx
+pytest
+rich
+uvicorn
