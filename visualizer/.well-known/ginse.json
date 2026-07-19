@@ -1,0 +1,246 @@
+{
+  "schema_version": "2",
+  "slug": "everett-optimization-judge",
+  "display_name": "Everett — Team Everett",
+  "description": "Ranks up to three benchmarked performance fixes, rejects failing candidates, and returns the safest highest-scoring optimization.",
+  "presentation": {
+    "action": "Score safe performance fixes",
+    "input": {
+      "label": "Benchmark candidates",
+      "icon": "code"
+    },
+    "output": {
+      "label": "Winning optimization scorecard",
+      "icon": "table"
+    }
+  },
+  "price": {
+    "amount_cents": 299,
+    "currency": "EUR"
+  },
+  "run_url": "https://unique-marzipan-a7a3f0.netlify.app/.netlify/functions/everett-judge",
+  "input_schema": {
+    "type": "object",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Benchmark candidates",
+    "additionalProperties": false,
+    "required": [
+      "baseline_p50_ms",
+      "candidates"
+    ],
+    "properties": {
+      "baseline_p50_ms": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "The p50 latency of the unoptimized endpoint in milliseconds."
+      },
+      "candidates": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "strategy",
+            "p50_ms",
+            "diff_lines",
+            "tests_passed"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,24}$",
+              "description": "A unique timeline identifier, such as A, B, or C."
+            },
+            "strategy": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 280,
+              "description": "The implementation approach tested in this timeline."
+            },
+            "p50_ms": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "The measured p50 endpoint latency after this change in milliseconds."
+            },
+            "diff_lines": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total changed lines in the candidate patch."
+            },
+            "tests_passed": {
+              "type": "boolean",
+              "description": "Whether the required correctness test suite passed."
+            }
+          }
+        },
+        "description": "One to three independently tested code-change candidates."
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Winning optimization and scorecard",
+    "additionalProperties": false,
+    "required": [
+      "baseline_p50_ms",
+      "winner",
+      "scoreboard",
+      "decision_evidence"
+    ],
+    "properties": {
+      "baseline_p50_ms": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "winner": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "strategy",
+          "tests_passed",
+          "p50_ms",
+          "speedup",
+          "diff_lines",
+          "score"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "tests_passed": {
+            "const": true
+          },
+          "p50_ms": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "speedup": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "diff_lines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "score": {
+            "type": "number"
+          }
+        }
+      },
+      "scoreboard": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "strategy",
+            "tests_passed",
+            "p50_ms",
+            "speedup",
+            "diff_lines",
+            "score"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "strategy": {
+              "type": "string"
+            },
+            "tests_passed": {
+              "type": "boolean"
+            },
+            "p50_ms": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "speedup": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "diff_lines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "decision_evidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hard_gate",
+          "speedup",
+          "diff_lines",
+          "score_margin",
+          "summary"
+        ],
+        "properties": {
+          "hard_gate": {
+            "const": "tests_passing"
+          },
+          "speedup": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "diff_lines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "score_margin": {
+            "type": "number"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  },
+  "example": {
+    "input": {
+      "baseline_p50_ms": 1200,
+      "candidates": [
+        {
+          "id": "A",
+          "strategy": "Cache repeat report responses.",
+          "p50_ms": 550,
+          "diff_lines": 31,
+          "tests_passed": true
+        },
+        {
+          "id": "B",
+          "strategy": "Replace the N+1 report query with one grouped query.",
+          "p50_ms": 105,
+          "diff_lines": 44,
+          "tests_passed": true
+        },
+        {
+          "id": "C",
+          "strategy": "Precompute the report summary before serving requests.",
+          "p50_ms": 80,
+          "diff_lines": 86,
+          "tests_passed": false
+        }
+      ]
+    }
+  },
+  "ownership_token": "ginse_verify_78bb79b49b15413da98a55fd55d6fcc6"
+}
